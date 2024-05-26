@@ -1,8 +1,6 @@
 package = "solid.lua"
 version = "0.1-1"
-source = {
-    url = "..." -- We don't have one yet
-}
+source = { }
 description = {
     summary = "Lua bindings to generated OpenScad scripts",
     detailed = [[ ]],
