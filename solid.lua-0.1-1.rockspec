@@ -1,10 +1,11 @@
 package = "solid.lua"
 version = "0.1-1"
-source = { }
+source = { 
+    url = "git://github.com/Maldus512/solid.lua"
+}
 description = {
     summary = "Lua bindings to generated OpenScad scripts",
     detailed = [[ ]],
-    homepage = "http://...", -- We don't have one yet
     license = "MIT"      -- or whatever you like
 }
 dependencies = {
