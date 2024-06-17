@@ -1,7 +1,9 @@
 package = "solid.lua"
 version = "0.1-1"
 source = { 
-    url = "git://github.com/Maldus512/solid.lua"
+    --url = "git://github.com/Maldus512/solid.lua",
+    url = "file:///home/maldus/Projects/Maldus512/solid.lua",
+    dir = "solid.lua",
 }
 description = {
     summary = "Lua bindings to generated OpenScad scripts",

@@ -1,27 +1,43 @@
 ---@diagnostic disable: redefined-local
 
+---@meta
 ---@alias Vector number[]
 
----@alias Cube { Cube = { dimensions: Vector, center: boolean } }
----@alias Cylinder { Cylinder = { radius: number, height: number, center: boolean } }
----@alias Sphere { Sphere = { radius: number } }
+---@alias Cube { Cube : { dimensions: Vector, center: boolean } }
+---@alias Cylinder { Cylinder : { radius: number, height: number, center: boolean } }
+---@alias Sphere { Sphere : { radius: number } }
 ---@alias Literal { Literal: string }
----@alias Operation { Operation = { name: string, solids : Solid[] } }
----@alias Transform { Transform = { name: string, vector: Vector, solid: Solid} }
+---@alias Operation { Operation : { name: string, solids : Solid[] } }
+---@alias Transform { Transform : { name: string, vector: Vector, solid: Solid} }
 ---@alias Solid Cube | Cylinder | Literal | Sphere | Operation | Transform | Solid
 
-local Operation = function(name, solids) 
-    return { Operation = { name = name, solids = solids } }
+local defaultCenter = false
+
+local match = function(variant)
+    return function(branches)
+        for k, v in pairs(branches) do
+            if variant[k] ~= nil then
+                v(variant[k])
+                return
+            end
+        end
+
+        if branches._ ~= nil then
+            for _, v in pairs(variant) do
+                branches._(v)
+                return
+            end
+        end
+
+        assert(false, "Non exahustive pattern matching")
+    end
 end
 
 local indentation = function(n)
     return string.rep("    ", n)
 end
 
-local exportToString
----@param solid Solid
----@return string
-exportToString = function(solid)
+local exportToString = function(solid)
     ---@type ({solid : Solid, indent: number} |  string)[]
     local stack = {}
     local indent = 0
@@ -34,19 +50,19 @@ exportToString = function(solid)
         end
     end
 
-    local operation = function(name, elements)
+    local operation = function(args)
         local stackBase = #stack + 1
 
-        addIndented(name .. "() {\n", stackBase)
-        for _, value in ipairs(elements) do
+        addIndented(args.name .. "() {\n", stackBase)
+        for _, value in ipairs(args.solids) do
             table.insert(stack, stackBase, { solid = value, indent = indent + 1 })
             table.insert(stack, stackBase, ";\n")
         end
         addIndented("}", stackBase)
     end
-    local transform = function(name, vector, element)
-        table.insert(stack, { solid = element, indent = indent + 1 })
-        addIndented(string.format("%s([%f, %f, %f])\n", name, vector[1], vector[2], vector[3]))
+    local transform = function(args)
+        table.insert(stack, { solid = args.solid, indent = indent + 1 })
+        addIndented(string.format("%s([%f, %f, %f])\n", args.name, args.vector[1], args.vector[2], args.vector[3]))
     end
 
     table.insert(stack, ";")
@@ -61,19 +77,20 @@ exportToString = function(solid)
         else
             indent = block.indent
 
-            Union.match(block.solid) {
-                Cylinder = function(diameter, height, center)
-                    addIndented(string.format("cylinder(d=%s, h=%s, center=%s)", diameter, height, tostring(center)))
+            match(block.solid) {
+                Cylinder = function(args)
+                    addIndented(string.format("cylinder(r=%s, h=%s, center=%s)", args.radius, args.height,
+                        tostring(args.center)))
                 end,
                 Sphere = function(diameter)
                     addIndented(string.format("sphere(d=%s)", diameter))
                 end,
-                Cube = function(dimensions, center)
+                Cube = function(args)
                     addIndented("cube([" ..
-                        tostring(dimensions[1]) ..
+                        tostring(args.dimensions[1]) ..
                         ", " ..
-                        tostring(dimensions[2]) ..
-                        ", " .. tostring(dimensions[3]) .. "], center=" .. tostring(center) .. ")")
+                        tostring(args.dimensions[2]) ..
+                        ", " .. tostring(args.dimensions[3]) .. "], center=" .. tostring(args.center) .. ")")
                 end,
                 Literal = function(value)
                     addIndented(value)
@@ -94,65 +111,84 @@ local exportToFile = function(solid, path)
     file:close()
 end
 
+local metaSolid
+
+local newOperation = function(name, solids)
+    return metaSolid({ Operation = { name = name, solids = solids } })
+end
+
+local newTransform = function(name, vector, solid)
+    return metaSolid({ Transform = { name = name, vector = vector, solid = solid } })
+end
+
+
 local union = function(args)
-    return Operation("union", args)
+    return newOperation("union", args)
 end
 
 local difference = function(args)
-    return Operation("difference", args)
+    return newOperation("difference", args)
 end
 
 local intersection = function(args)
-    return Operation("intersection", args)
+    return newOperation("intersection", args)
 end
 
 local minkowski = function(args)
-    return Operation("minkowski", args)
+    return newOperation("minkowski", args)
 end
 
 local translate = function(vector, solid)
-    return Solid.Transform("translate", vector, solid)
+    return newTransform("translate", vector, solid)
 end
 
-setmetatable(Solid, {
-    __add = function(t1, t2)
-        return union { t1, t2 }
-    end,
-    __sub = function(t1, t2)
-        return difference { t1, t2 }
-    end,
-    __mul = function(t1, t2)
-        return minkowski { t1, t2 }
-    end,
-    __shr = function(t1, t2)
-        return translate(t2, t1)
-    end
-})
+metaSolid = function(target)
+    return setmetatable(target, {
+        __add = function(t1, t2)
+            return union { t1, t2 }
+        end,
+        __sub = function(t1, t2)
+            return difference { t1, t2 }
+        end,
+        __mul = function(t1, t2)
+            return minkowski { t1, t2 }
+        end,
+        __shr = function(t1, t2)
+            return translate(t2, t1)
+        end
+    })
+end
 
 ---@class Module
 ---@field cube fun(args : {[1] : number[], center: boolean}): Solid
 
 ---@type Module
 return {
+    ---@param args {dimensions : Vector, center: boolean}
+    ---@return Solid
     cube = function(args)
-        if args.center == nil then
-            args.center = false
+        if args.dimensions then
+            args.center = args.center or defaultCenter
+            return metaSolid { Cube = args }
+        else
+            return metaSolid { Cube = { dimensions = args, center = defaultCenter } }
         end
-        return Solid.Cube(args[1], args.center)
     end,
     ---@return Solid
     cylinder = function(args)
-        if args.center == nil then
-            args.center = false
-        end
-        assert(args.diameter ~= nil, "Diameter required")
+        assert(args.diameter ~= nil or args.radius ~= nil, "Either radius or diameter required")
+        assert(args.diameter == nil or args.radius == nil, "Only radius or diameter required")
         assert(args.height ~= nil, "Height required")
-        return Solid.Cylinder(args.diameter, args.height, args.center)
+        return metaSolid { Cylinder = {
+            height = args.height,
+            radius = args.radius or args.diameter / 2,
+            center = args.center or defaultCenter,
+        } }
     end,
     ---@return Solid
     sphere = function(args)
         assert(args.diameter ~= nil or args.radius ~= nil, "Diameter or radius required")
-        return Solid.Sphere(args.diameter or args.radius * 2)
+        return metaSolid { Sphere = args.diameter or args.radius * 2 }
     end,
     ---@return Solid
     union = union,
@@ -165,15 +201,18 @@ return {
     ---@return Solid
     translate = translate,
     ---@return Solid
-    rotate = function(vector, solid) return Solid.Transform("rotate", vector, solid) end,
+    rotate = function(vector, solid) return newTransform("rotate", vector, solid) end,
     ---@return Solid
-    scale = function(vector, solid) return Solid.Transform("scale", vector, solid) end,
+    scale = function(vector, solid) return newTransform("scale", vector, solid) end,
     ---@return Solid
-    literal = Solid.Literal,
+    literal = function(value)
+        return metaSolid { Literal = value }
+    end,
+    exportToString = exportToString,
+    exportToFile = exportToFile,
+    defaultCenter = function(default)
+        defaultCenter = default
+    end,
     test = function()
     end,
-    exportToString = function(solid)
-        return exportToString(solid, 0)
-    end,
-    exportToFile = exportToFile,
 }
