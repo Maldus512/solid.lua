@@ -138,6 +138,8 @@ local minkowski = function(args)
     return newOperation("minkowski", args)
 end
 
+local scale = function(vector, solid) return newTransform("scale", vector, solid) end
+
 local translate = function(vector, solid)
     return newTransform("translate", vector, solid)
 end
@@ -151,7 +153,11 @@ metaSolid = function(target)
             return difference { t1, t2 }
         end,
         __mul = function(t1, t2)
-            return minkowski { t1, t2 }
+            if type(t2) == "number" then
+                return scale({ t2, t2, t2 }, t1)
+            else
+                return scale({ t2[1] or 1, t2[2] or 1, t2[3] or 1 }, t1)
+            end
         end,
         __shr = function(t1, t2)
             return translate(t2, t1)
@@ -199,11 +205,15 @@ return {
     ---@return Solid
     minkowski = minkowski,
     ---@return Solid
+    hull = function(args)
+        return newOperation("hull", args)
+    end,
+    ---@return Solid
     translate = translate,
     ---@return Solid
     rotate = function(vector, solid) return newTransform("rotate", vector, solid) end,
     ---@return Solid
-    scale = function(vector, solid) return newTransform("scale", vector, solid) end,
+    scale = scale,
     ---@return Solid
     literal = function(value)
         return metaSolid { Literal = value }
