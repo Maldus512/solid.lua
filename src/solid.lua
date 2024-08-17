@@ -177,6 +177,9 @@ return {
             args.center = args.center or defaultCenter
             return metaSolid { Cube = args }
         else
+            while #args < 3 do
+                table.insert(args, args[1])
+            end
             return metaSolid { Cube = { dimensions = args, center = defaultCenter } }
         end
     end,
