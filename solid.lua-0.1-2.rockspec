@@ -1,8 +1,7 @@
 package = "solid.lua"
-version = "0.1-1"
+version = "0.1-2"
 source = { 
-    --url = "git://github.com/Maldus512/solid.lua",
-    url = "file:///home/maldus/Projects/Maldus512/solid.lua",
+    url = "git://github.com/Maldus512/solid.lua",
     dir = "solid.lua",
 }
 description = {

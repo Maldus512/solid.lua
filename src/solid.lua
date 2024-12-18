@@ -121,6 +121,23 @@ local newTransform = function(name, vector, solid)
     return metaSolid({ Transform = { name = name, vector = vector, solid = solid } })
 end
 
+local createVector = function(arg)
+    if type(arg) == "number" then
+        return { arg, arg, arg }
+    elseif type(arg) == "table" then
+        if #arg > 0 then
+            arg[2] = arg[2] or 0
+            arg[3] = arg[3] or 0
+            return arg
+        elseif arg.x or arg.y or arg.z then
+            return { arg.x or 0, arg.y or 0, arg.z or 0 }
+        else
+            error("Vector must be a number, a number array with at least 1 element, or a table with either x, y or z")
+        end
+    else
+        error("Vector must be a number, a number array with at least 1 element, or a table with either x, y or z")
+    end
+end
 
 local union = function(args)
     return newOperation("union", args)
@@ -141,7 +158,7 @@ end
 local scale = function(vector, solid) return newTransform("scale", vector, solid) end
 
 local translate = function(vector, solid)
-    return newTransform("translate", vector, solid)
+    return newTransform("translate", createVector(vector), solid)
 end
 
 metaSolid = function(target)
@@ -166,21 +183,24 @@ metaSolid = function(target)
 end
 
 ---@class Module
----@field cube fun(args : {[1] : number[], center: boolean}): Solid
 
 ---@type Module
 return {
-    ---@param args {dimensions : Vector, center: boolean}
+    ---@param args {[1] : (number[]|number)?, dimensions: (number[]|number)?, center: boolean} | number[] | number
     ---@return Solid
     cube = function(args)
-        if args.dimensions then
+        if type(args) == "number" then
+            metaSolid { Cube = { dimensions = createVector(args), center = defaultCenter } }
+        elseif #args > 1 then
             args.center = args.center or defaultCenter
+            args.dimensions = createVector(args)
+            return metaSolid { Cube = args }
+        elseif args.dimensions or args[1] then
+            args.center = args.center or defaultCenter
+            args.dimensions = createVector(args.dimensions or args[1])
             return metaSolid { Cube = args }
         else
-            while #args < 3 do
-                table.insert(args, args[1])
-            end
-            return metaSolid { Cube = { dimensions = args, center = defaultCenter } }
+            return metaSolid { Cube = { dimensions = createVector(args), center = defaultCenter } }
         end
     end,
     ---@return Solid
@@ -216,6 +236,8 @@ return {
     ---@return Solid
     rotate = function(vector, solid) return newTransform("rotate", vector, solid) end,
     ---@return Solid
+    mirror = function(vector, solid) return newTransform("mirror", vector, solid) end,
+    ---@return Solid
     scale = scale,
     ---@return Solid
     literal = function(value)
@@ -223,8 +245,9 @@ return {
     end,
     exportToString = exportToString,
     exportToFile = exportToFile,
-    defaultCenter = function(default)
+    defaultCenter = function(self, default)
         defaultCenter = default
+        return self
     end,
     test = function()
     end,
