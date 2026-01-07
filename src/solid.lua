@@ -118,6 +118,11 @@ local newOperation = function(name, solids)
 end
 
 local newTransform = function(name, vector, solid)
+    assert(type(vector) == "table", "Vector must be an array, not " .. type(vector))
+    assert(type(vector[1]) == "number", "Vector[1] must be a number, not " .. type(vector[1]))
+    assert(type(vector[1]) == "number", "Vector[1] must be a number, not " .. type(vector[2]))
+    assert(type(vector[1]) == "number", "Vector[1] must be a number, not " .. type(vector[3]))
+
     return metaSolid({ Transform = { name = name, vector = vector, solid = solid } })
 end
 
@@ -161,7 +166,28 @@ local translate = function(vector, solid)
     return newTransform("translate", createVector(vector), solid)
 end
 
+---@return Solid
+local rotate = function(solid, vector) return newTransform("rotate", vector, solid) end
+---@return Solid
+local mirror = function(solid, vector) return newTransform("mirror", vector, solid) end
+
 metaSolid = function(target)
+    target.add = function(self, solid)
+        return union { self, solid }
+    end
+
+    target.sub = function(self, solid)
+        return difference { self, solid }
+    end
+
+    target.rotate = function(self, vector)
+        return rotate(self, vector)
+    end
+
+    target.mirror = function(self, vector)
+        return mirror(self, vector)
+    end
+
     return setmetatable(target, {
         __add = function(t1, t2)
             return union { t1, t2 }
@@ -234,9 +260,9 @@ return {
     ---@return Solid
     translate = translate,
     ---@return Solid
-    rotate = function(vector, solid) return newTransform("rotate", vector, solid) end,
+    rotate = rotate,
     ---@return Solid
-    mirror = function(vector, solid) return newTransform("mirror", vector, solid) end,
+    mirror = mirror,
     ---@return Solid
     scale = scale,
     ---@return Solid
